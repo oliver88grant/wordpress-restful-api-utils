@@ -2,38 +2,21 @@
 import axios from 'axios';
 import qs from 'qs';
 import FormData from 'form-data';
-import dotenv from 'dotenv';
-dotenv.config(); 
-
-// WooCommerce site and credentials
-const SITE_URL = process.env.SITE_URL;
-const baseURL = `${SITE_URL}/wp-json/wc/v3/`;
-const consumerKey = process.env.consumerKey;
-const consumerSecret = process.env.consumerSecret;
-
-// Construct auth query string
-const authParams = {
-  consumer_key: consumerKey,
-  consumer_secret: consumerSecret,
-};
-
-const WP_USERNAME = process.env.WP_USERNAME || 'admin'; // or real username (not recommended)
-const WP_APP_PASSWORD = process.env.WP_APP_PASSWORD; // or real password (not recommended)
-
-// Encode basic auth
-const BASIC_AUTH = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
 
 
 
-// Upload external image to WordPress Media Library
-/**
- * 
- * @param {*} imageUrl 
- * @param {*} fileName fileName without extension, for example: "test-one"
- * @param {*} altText 
- * @returns 
- */
-export async function uploadImageFromURL(imageUrl, fileName, altText) {
+export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERNAME, WP_APP_PASSWORD }) {
+
+  const baseURL = `${SITE_URL}/wp-json/wc/v3/`;
+  // Encode basic auth
+  const BASIC_AUTH = Buffer.from(`${WP_USERNAME}:${WP_APP_PASSWORD}`).toString('base64');
+  // Construct auth query string
+  const authParams = {
+    consumer_key: consumerKey,
+    consumer_secret: consumerSecret,
+  };
+
+  async function uploadImageFromURL(imageUrl, fileName, altText) {
     try {
       // 1. Fetch image as buffer
       const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
@@ -67,10 +50,13 @@ export async function uploadImageFromURL(imageUrl, fileName, altText) {
             Authorization: `Basic ${BASIC_AUTH}`,
         },
       });
+
+      console.info(`get image success for(${imageUrl})`)
   
       return {
         id: mediaUpload.data.id,
-        alt: altText
+        alt: altText,
+        url: mediaUpload.data.source_url,
       };
     } catch (err) {
       console.error(`❌ Image upload failed: ${imageUrl}`, err.response?.data || err.message);
@@ -79,95 +65,105 @@ export async function uploadImageFromURL(imageUrl, fileName, altText) {
   }
 
 
-export const updateProduct = async (productId, updateData) => {
-  try {
-    const response = await axios.put(
-      `${baseURL}products/${productId}?${qs.stringify(authParams)}`,
-      updateData
-    );
-    console.log('✅ Product updated:', response.data);
-    return response;
-  } catch (error) {
-    console.error('❌ Error updating product:', error.response?.data || error.message);
-  }
-}
+  return {
 
-export const createProduct = async (productData) => {
-  try {
+// Upload external image to WordPress Media Library
+/**
+ * 
+ * @param {*} imageUrl 
+ * @param {*} fileName fileName without extension, for example: "test-one"
+ * @param {*} altText 
+ * @returns 
+ */
+    uploadImageFromURL,
+    updateProduct: async (productId, updateData) => {
+      try {
+        const response = await axios.put(
+          `${baseURL}products/${productId}?${qs.stringify(authParams)}`,
+          updateData
+        );
+        console.log('✅ Product updated:', response.data);
+        return response;
+      } catch (error) {
+        console.error('❌ Error updating product:', error.response?.data || error.message);
+      }
+    },
+    createProduct: async (productData) => {
+      try {
+        
+        let uploadedImages = [];
     
-    let uploadedImages = [];
-
-    let images = productData.images || [];
-
-    if (images.length > 0) {
-      uploadedImages = await Promise.all(
-        images.map(img =>
-          uploadImageFromURL(img.url, img.fileName, img.alt)
-        )
-      );
-
-      // Filter out failed uploads
-      uploadedImages = uploadedImages.filter(img => img !== null);
+        let images = productData.images || [];
+    
+        if (images.length > 0) {
+          for (let index = 0; index < images.length; index++) {
+            const thisImage = images[index];
+            let res = await uploadImageFromURL(thisImage.url, thisImage.fileName, thisImage.alt)
+            uploadedImages.push(res)
+          }
+          // Filter out failed uploads
+          uploadedImages = uploadedImages.filter(img => img !== null);
+          
+    
+          productData.images = uploadedImages.map(img => ({
+            id: img.id,
+            alt: img.alt
+          }));
+        }
+    
+        if (images.length > 0 && productData.images.length != images.length) {
+            console.error(`❌ Some images failed to upload: for ${product.name}, returned`, productData.images.length, images.length);
+            return null;
+        }
+    
+    
+        const product = await axios.post(
+            `${SITE_URL}/wp-json/wc/v3/products?${qs.stringify(authParams)}`,
+            productData
+          );
       
+          console.log('✅ Product created: id=', product?.data?.id);
+          return product;
+    
+      } catch (error) {
+        console.error('❌ Error creating product:', error.response?.data || error.message);
+      }
+    },
+    getProduct: async (productId) => {
+      try {
+        const response = await axios.get(
+          `${baseURL}products/${productId}?${qs.stringify(authParams)}`
+        );
+        console.log('✅ Product fetched:', JSON.stringify(response.data));
+        return response
+      } catch (error) {
+        console.error('❌ Error fetching product:', error.response?.data || error.message);
+      }
+    },
+    getProducts: async (filters = {}) => {
 
-      productData.images = uploadedImages.map(img => ({
-        id: img.id,
-        alt: img.alt
-      }));
+      let page = 1;
+      let allProducts = [];
+      let hasMore = true;
+    
+      while (hasMore) {
+        const query = {
+          ...authParams,
+          per_page: 100,
+          page,
+          ...filters // add filters like category, search, stock_status
+        };
+    
+        const { data } = await axios.get(`${baseURL}products?${qs.stringify(query)}`);
+        allProducts = allProducts.concat(data);
+        hasMore = data.length === 100;
+        page++;
+      }
+    
+      return allProducts;
+    
     }
-
-    if (images.length > 0 && productData.images.length != images.length) {
-        console.error(`❌ Some images failed to upload: for ${product.name}, returned`, productData.images.length, images.length);
-        return null;
-    }
-
-
-    const product = await axios.post(
-        `${SITE_URL}/wp-json/wc/v3/products?${qs.stringify(authParams)}`,
-        productData
-      );
-  
-      console.log('✅ Product created:', product.data.id);
-      return product;
-
-  } catch (error) {
-    console.error('❌ Error creating product:', error.response?.data || error.message);
-  }
+  };
 }
 
 
-export const getProduct = async (productId) => {
-  try {
-    const response = await axios.get(
-      `${baseURL}products/${productId}?${qs.stringify(authParams)}`
-    );
-    console.log('✅ Product fetched:', JSON.stringify(response.data));
-    return response
-  } catch (error) {
-    console.error('❌ Error fetching product:', error.response?.data || error.message);
-  }
-}
-
-export const getProducts = async (filters = {}) => {
-
-  let page = 1;
-  let allProducts = [];
-  let hasMore = true;
-
-  while (hasMore) {
-    const query = {
-      ...authParams,
-      per_page: 100,
-      page,
-      ...filters // add filters like category, search, stock_status
-    };
-
-    const { data } = await axios.get(`${baseURL}products?${qs.stringify(query)}`);
-    allProducts = allProducts.concat(data);
-    hasMore = data.length === 100;
-    page++;
-  }
-
-  return allProducts;
-
-}

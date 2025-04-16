@@ -56,7 +56,7 @@ const productData = {
 
 
     // get all products example
-    // const data = await getProducts();
+    const data = await getProducts();
 
     // filter by example
     // {
@@ -65,9 +65,9 @@ const productData = {
     //   stock_status: 'instock',       // filter by stock status (instock, outofstock, onbackorder)
     //   search: 'search item',          // search for products by name
     // }
-    const data = await getProducts({
-      category: 26,
-    });
+    // const data = await getProducts({
+    //   category: 26,
+    // });
 
     
     console.log("✅ Products retrieved:", data);
@@ -80,11 +80,7 @@ const productData = {
     //   description: "An updated product description.fff",
     //   short_description: "An updated product short description.fff",
     //   meta_data: [
-    //     { key: 'custome_one', value: 'value A 5 fff' },
-    //     { key: 'custome_two', value: 'value B 5 fff' },
-    //     { key: '_yoast_wpseo_title', value: 'fff title' },
-    //     { key: '_yoast_wpseo_metadesc', value: 'fff description for SEO.' },
-    //     { key: '_yoast_wpseo_focuskw', value: 'fff keywords' }
+    //     { key: 'my_updated_for', value: 'translate_description' },
     //   ],
     // });
 
