@@ -19,7 +19,12 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
   async function uploadImageFromURL(imageUrl, fileName, altText) {
     try {
       // 1. Fetch image as buffer
-      const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+      const imageResponse = await axios.get(imageUrl, { 
+        responseType: 'arraybuffer',
+        headers: {
+          'Accept': 'image/jpeg,image/png,image/jpg;q=0.9,image/*;q=0.8'
+        }
+      });
 
       // Determine file extension and MIME type
     const contentType = imageResponse.headers['content-type'] || 'image/jpeg';
@@ -27,13 +32,14 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
       'image/jpeg': '.jpg',
       'image/png': '.png',
       'image/gif': '.gif',
-      'image/webp': '.webp',
+      // 'image/webp': '.webp',
     };
 
     const urlExtension = imageUrl.match(/\.([0-9a-z]+)$/i)?.[1].toLowerCase();
     const fileExtension = mimeToExt[contentType] || (urlExtension ? `.${urlExtension}` : '.jpg');
 
     const uploadFileName = `${fileName}${fileExtension}`;
+    console.log(`Uploading image: ${uploadFileName} (${contentType})`);
 
   
       // 2. Upload to WP media
@@ -76,17 +82,23 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
  * @returns 
  */
     uploadImageFromURL,
-    updateProduct: async (productId, updateData) => {
+    deleteImageById: async (imageId, data={force: true}) => {
       try {
-        const response = await axios.put(
-          `${baseURL}products/${productId}?${qs.stringify(authParams)}`,
-          updateData
-        );
-        console.log('✅ Product updated:', response.data);
-        return response;
-      } catch (error) {
-        console.error('❌ Error updating product:', error.response?.data || error.message);
-      }
+        const response = await axios.delete(
+          `${SITE_URL}/wp-json/wp/v2/media/${imageId}`,
+            {
+              headers:{
+                Authorization: `Basic ${BASIC_AUTH}`,
+              },
+              data
+            }
+          );
+          console.log('✅ image deleted:', response.data);
+          return response;
+        } catch (error) {
+          console.error('❌ Error to delete image:', error.response?.data || error.message);
+        }
+    
     },
     createProduct: async (productData) => {
       try {
@@ -138,6 +150,18 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
         return response
       } catch (error) {
         console.error('❌ Error fetching product:', error.response?.data || error.message);
+      }
+    },
+    deleteProduct: async (productId, data={}) => {
+      try {
+        const response = await axios.delete(
+          `${baseURL}products/${productId}?${qs.stringify(authParams)}`,
+          { data } // force=true means permanently delete
+        );
+        console.log('✅ Product deleted:', response.data);
+        return response
+      } catch (error) {
+        console.error('❌ Error deleting product:', error.response?.data || error.message);
       }
     },
     getProducts: async (filters = {}) => {
