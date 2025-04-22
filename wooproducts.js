@@ -186,6 +186,28 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
     
       return allProducts;
     
+    },
+    getProductCategories: async (filters = {}) => {
+      let page = 1;
+      let allCategories = [];
+      let hasMore = true;
+    
+      while (hasMore) {
+        const query = {
+          ...authParams,
+          per_page: 100,
+          page,
+          ...filters // add filters like category, search, stock_status
+        };
+    
+        const { data } = await axios.get(`${baseURL}products/categories?${qs.stringify(query)}`);
+        allCategories = allCategories.concat(data);
+        hasMore = data.length === 100;
+        page++;
+      }
+    
+      return allCategories;
+    
     }
   };
 }
