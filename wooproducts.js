@@ -3,6 +3,7 @@ import axios from 'axios';
 import qs from 'qs';
 import FormData from 'form-data';
 import path from 'path';
+import crypto from 'crypto';
 
 
 
@@ -71,21 +72,35 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
     }
   }
 
+    /**
+   * Upload media to WordPress with optional new filename.
+   * @param {string} url - The original media URL.
+   * @param {string} [slug] - Optional slug for new filename (e.g., 'product-name').
+   * @returns {Promise<string>} - The new media URL or the original URL on failure.
+   */
 
-  async function downloadAndUploadMedia(url) {
+  async function downloadAndUploadMedia(url, slug) {
     try {
-      const filename = path.basename(url.split('?')[0]);
+      const originalFilename = path.basename(url.split('?')[0]);
+      const fileExt = path.extname(originalFilename);
+      const randomId = crypto.randomBytes(3).toString('hex'); // 6 characters
+
+      const newFilename = slug
+      ? `${slug}-${randomId}${fileExt}`
+      : originalFilename;
+
+
       const fileRes = await fetch(url);
       const arrayBuffer = await fileRes.arrayBuffer();
       const file = Buffer.from(arrayBuffer);
   
       const form = new FormData();
-      form.append('file', file, filename);
+      form.append('file', file, newFilename);
   
       const res = await axios.post(`${SITE_URL}/wp-json/wp/v2/media`, form, {
         headers: {
           ...form.getHeaders(),
-          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Disposition': `attachment; filename="${newFilename}"`,
           Authorization: `Basic ${BASIC_AUTH}`,
         }
       });

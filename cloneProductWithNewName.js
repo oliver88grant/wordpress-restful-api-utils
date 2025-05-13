@@ -2,8 +2,14 @@
 import { getSlugByURL } from "./utils.js";
 import slugify from 'slugify';
 import dotenv from 'dotenv';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 dotenv.config(); 
 
+// For resolving __dirname in ES module
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 //**
 //** 1. Create a new product with the above data and upload images from URLs 
 //**
@@ -58,6 +64,25 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
     // 如果 description 有外部资源，上传资源到本站并替换
     if(newProductData.description){
 
+
+      // Define path to mapping file
+      const mappingFilePath = path.join(__dirname, 'data', 'media-mapping.json');
+      let mediaMap = {};
+      try {
+        const file = await fs.readFile(mappingFilePath, 'utf-8');
+        mediaMap = JSON.parse(file);
+      } catch {
+        console.log('Mapping file not found, initializing new map.');
+      }
+
+      // this is the file name for the new image in the new site, will add random number to the end of the file name
+      let fileName = newProductData.overwrite_images_fileName || slugify(newProductData.name, {
+        lower: true,      // convert to lowercase
+        strict: true,     // remove special characters
+        trim: true,
+      });
+
+
       let description = newProductData.description;
       const urlRegex = /https?:\/\/[^"' )>]+?\.(jpg|jpeg|png|gif|webp|mp4|svg|webm|pdf)/gi;
       const matches = [...description.matchAll(urlRegex)];
@@ -67,15 +92,28 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
       for (const oldUrl of uniqueUrls) {
         if (oldUrl.startsWith(TARGET_SITE_URL)) continue; // already hosted on new site
 
-        const newUrl = await targetWPClient.downloadAndUploadMedia(oldUrl);
-        if (newUrl !== oldUrl) {
-          description = description.split(oldUrl).join(newUrl);
-          console.log(`✔ Replaced: ${oldUrl} → ${newUrl}`);
+
+        let newUrl = mediaMap[oldUrl];
+        if (!newUrl) {
+          try {
+             newUrl = await targetWPClient.downloadAndUploadMedia(oldUrl, fileName);
+             mediaMap[oldUrl] = newUrl;
+
+              await fs.mkdir(path.dirname(mappingFilePath), { recursive: true });
+              await fs.writeFile(mappingFilePath, JSON.stringify(mediaMap, null, 2));
+          } catch (error) {
+            console.error(`✖ Failed to upload ${oldUrl}`, err);
+            continue;
+          }
+        }else {
+          console.log(`✔ Reused from map: ${oldUrl} → ${newUrl}`);
         }
+
+        description = description.split(oldUrl).join(newUrl);
+        console.log(`✔ Replaced: ${oldUrl} → ${newUrl}`);
       }
       newProductData.description = description;
     }
-
   }
 
 
@@ -94,7 +132,7 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
       lower: true,      // convert to lowercase
       strict: true,     // remove special characters
       trim: true,
-    });;
+    });
     newProductData.images = oldData.images.map((i, index)=>{
       return {
         url: i.src,
