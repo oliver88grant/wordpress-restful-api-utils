@@ -2,6 +2,7 @@
 import axios from 'axios';
 import qs from 'qs';
 import FormData from 'form-data';
+import path from 'path';
 
 
 
@@ -71,6 +72,32 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
   }
 
 
+  async function downloadAndUploadMedia(url) {
+    try {
+      const filename = path.basename(url.split('?')[0]);
+      const fileRes = await fetch(url);
+      const arrayBuffer = await fileRes.arrayBuffer();
+      const file = Buffer.from(arrayBuffer);
+  
+      const form = new FormData();
+      form.append('file', file, filename);
+  
+      const res = await axios.post(`${SITE_URL}/wp-json/wp/v2/media`, form, {
+        headers: {
+          ...form.getHeaders(),
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          Authorization: `Basic ${BASIC_AUTH}`,
+        }
+      });
+  
+      return res.data.source_url;
+    } catch (error) {
+      console.error(`Failed to upload: ${url}`, error.message);
+      return url; // fallback to original
+    }
+  }
+
+
   return {
 
 // Upload external image to WordPress Media Library
@@ -82,6 +109,7 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
  * @returns 
  */
     uploadImageFromURL,
+    downloadAndUploadMedia,
     deleteImageById: async (imageId, data={force: true}) => {
       try {
         const response = await axios.delete(
@@ -162,6 +190,18 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
         return response
       } catch (error) {
         console.error('❌ Error deleting product:', error.response?.data || error.message);
+      }
+    },
+    updateProduct: async (productId, data={}) => {
+      try {
+        const response = await axios.put(
+          `${baseURL}products/${productId}?${qs.stringify(authParams)}`,
+          data 
+        );
+        console.log('✅ Product update:', response.data);
+        return response
+      } catch (error) {
+        console.error('❌ Error updating product:', error.response?.data || error.message);
       }
     },
     getProducts: async (filters = {}) => {

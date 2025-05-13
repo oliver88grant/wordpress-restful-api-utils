@@ -31,7 +31,7 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
   if(!slug) throw new Error("Invalid product URL");
 
   // get the product by slug
-  const response = await sourceWPClient.getProducts({slug: slug});
+  const response = await sourceWPClient.getProducts({slug: slug, context:"edit"});
   if(!response || !response?.[0]) throw new Error("Failed to get product by slug");
   const oldData = response?.[0];
   const old_meta_data = oldData.meta_data;
@@ -53,7 +53,32 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
   newProductData.meta_data = old_meta_data;
   if(!newProductData.description){
     newProductData.description = oldData.description; // copy the old product description to the new product data
+
+
+    // 如果 description 有外部资源，上传资源到本站并替换
+    if(newProductData.description){
+
+      let description = newProductData.description;
+      const urlRegex = /https?:\/\/[^"' )>]+?\.(jpg|jpeg|png|gif|webp|mp4|svg|webm|pdf)/gi;
+      const matches = [...description.matchAll(urlRegex)];
+      const uniqueUrls = [...new Set(matches.map(m => m[0]))];
+
+      let TARGET_SITE_URL = targetWPClient===sourceWPClient ? process.env.SITE_URL : process.env.TARGET_SITE_URL;
+      for (const oldUrl of uniqueUrls) {
+        if (oldUrl.startsWith(TARGET_SITE_URL)) continue; // already hosted on new site
+
+        const newUrl = await targetWPClient.downloadAndUploadMedia(oldUrl);
+        if (newUrl !== oldUrl) {
+          description = description.split(oldUrl).join(newUrl);
+          console.log(`✔ Replaced: ${oldUrl} → ${newUrl}`);
+        }
+      }
+      newProductData.description = description;
+    }
+
   }
+
+
   if(!newProductData.short_description){
     newProductData.short_description = oldData.short_description; // copy the old product short description to the new product data
   }
