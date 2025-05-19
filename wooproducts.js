@@ -72,6 +72,25 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
     }
   }
 
+
+  async function createPost(postData) {
+    try {
+      const response = await axios.post(
+        `${SITE_URL}/wp-json/wp/v2/posts`,
+        postData,
+        {
+          headers: {
+            Authorization: `Basic ${BASIC_AUTH}`,
+          },
+        }
+      );
+      console.log('✅ Post created:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error creating post:', error.response?.data || error.message);
+    }
+  }
+
     /**
    * Upload media to WordPress with optional new filename.
    * @param {string} url - The original media URL.
@@ -125,6 +144,7 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
  */
     uploadImageFromURL,
     downloadAndUploadMedia,
+    createPost,
     deleteImageById: async (imageId, data={force: true}) => {
       try {
         const response = await axios.delete(
