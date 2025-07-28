@@ -66,14 +66,18 @@ dotenv.config();
           ]
         };
 
-        const targetWPclient = createWPClient({
-          SITE_URL: process.env.TARGET_SITE_URL, 
-          consumerKey: process.env.TARGET_consumerKey, 
-          consumerSecret: process.env.TARGET_consumerSecret, 
-          WP_USERNAME: process.env.TARGET_WP_USERNAME || 'admin', // or real username (not recommended)
-          WP_APP_PASSWORD: process.env.TARGET_WP_APP_PASSWORD, // or real password (not recommended)
-        });
-        cloneProductWithNewName(productURL, productData, wpClient, targetWPclient)
+        if(process.env.TARGET_SITE_URL){
+          const targetWPclient = createWPClient({
+            SITE_URL: process.env.TARGET_SITE_URL, 
+            consumerKey: process.env.TARGET_consumerKey, 
+            consumerSecret: process.env.TARGET_consumerSecret, 
+            WP_USERNAME: process.env.TARGET_WP_USERNAME || 'admin', // or real username (not recommended)
+            WP_APP_PASSWORD: process.env.TARGET_WP_APP_PASSWORD, // or real password (not recommended)
+          });
+          cloneProductWithNewName(productURL, productData, wpClient, targetWPclient)
+        } else {
+          cloneProductWithNewName(productURL, productData, wpClient);
+        }
   
   
     } catch (error) {

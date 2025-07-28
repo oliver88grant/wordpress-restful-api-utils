@@ -4,6 +4,7 @@ import qs from 'qs';
 import FormData from 'form-data';
 import path from 'path';
 import crypto from 'crypto';
+import { pipeline } from 'stream/promises';
 
 
 
@@ -109,11 +110,38 @@ export function createWPClient({ SITE_URL, consumerKey, consumerSecret, WP_USERN
       : originalFilename;
 
 
-      const fileRes = await fetch(url);
-      const arrayBuffer = await fileRes.arrayBuffer();
-      const file = Buffer.from(arrayBuffer);
-  
+      // const fileRes = await fetch(url);
+      // const arrayBuffer = await fileRes.arrayBuffer();
+      // const file = Buffer.from(arrayBuffer);
+      // const form = new FormData();
+
+      // Download with progress
+      const response = await axios.get(url, { responseType: 'stream' });
+      const totalLength = Number(response.headers['content-length']);
+      let downloaded = 0;
+
+      const chunks = [];
+      response.data.on('data', (chunk) => {
+        downloaded += chunk.length;
+        chunks.push(chunk);
+        if (totalLength) {
+          const percent = ((downloaded / totalLength) * 100).toFixed(2);
+          process.stdout.write(`\rDownloading ${newFilename}: ${percent}%`);
+        }
+      });
+
+      await new Promise((resolve, reject) => {
+        response.data.on('end', () => {
+          process.stdout.write('\n');
+          resolve();
+        });
+        response.data.on('error', reject);
+      });
+
+      const file = Buffer.concat(chunks);
+
       const form = new FormData();
+
       form.append('file', file, newFilename);
   
       const res = await axios.post(`${SITE_URL}/wp-json/wp/v2/media`, form, {

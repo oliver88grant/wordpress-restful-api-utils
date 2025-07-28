@@ -39,6 +39,7 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
   // get the product by slug
   const response = await sourceWPClient.getProducts({slug: slug, context:"edit"});
   if(!response || !response?.[0]) throw new Error("Failed to get product by slug");
+  console.log(`✔ Found product by slug: ${slug}`, response?.[0].id);
   const oldData = response?.[0];
   const old_meta_data = oldData.meta_data;
 
@@ -87,6 +88,7 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
       const urlRegex = /https?:\/\/[^"' )>]+?\.(jpg|jpeg|png|gif|webp|mp4|svg|webm|pdf)/gi;
       const matches = [...description.matchAll(urlRegex)];
       const uniqueUrls = [...new Set(matches.map(m => m[0]))];
+      console.log(`Found ${uniqueUrls.length} unique URLs in the description.`, uniqueUrls);
 
       let TARGET_SITE_URL = targetWPClient===sourceWPClient ? process.env.SITE_URL : process.env.TARGET_SITE_URL;
       for (const oldUrl of uniqueUrls) {
@@ -96,6 +98,7 @@ export const cloneProductWithNewName = async (productURL, newProductData, source
         let newUrl = mediaMap[oldUrl];
         if (!newUrl) {
           try {
+             console.log(`Uploading ${oldUrl} to the new site...`);
              newUrl = await targetWPClient.downloadAndUploadMedia(oldUrl, fileName);
              mediaMap[oldUrl] = newUrl;
 
